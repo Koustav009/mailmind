@@ -1,10 +1,12 @@
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 
 import pytest
 
 from email_agent.config import Settings
 from email_agent.models.classification import EmailClassification
 from email_agent.services.processor import EmailProcessor
+from email_agent.utils.helpers import format_imap_date
 
 
 def make_settings(**overrides) -> Settings:
@@ -79,9 +81,11 @@ class FakeImap:
         self.events = events
         self.unseen = unseen
         self.seen: list[int] = []
+        self.last_since: str | None = None
 
-    async def fetch_unseen(self):
+    async def fetch_unseen(self, since=None):
         self.events.append("imap.fetch")
+        self.last_since = since
         return self.unseen
 
     async def fetch_message(self, uid):
@@ -134,6 +138,18 @@ def make_processor(events, unseen, *, classifier=None, telegram=None, repo=None)
         telegram or FakeTelegram(events),
         settings,
     )
+
+
+async def test_cycle_limits_fetch_to_lookback_window():
+    events: list[str] = []
+    imap = FakeImap(events, [])
+    settings = make_settings(imap_lookback_days=2)
+    processor = EmailProcessor(imap, FakeRepo(events), FakeClassifier(events), FakeTelegram(events), settings)
+
+    await processor.run_cycle()
+
+    expected = format_imap_date(date.today() - timedelta(days=2))
+    assert imap.last_since == expected
 
 
 async def test_happy_path_ordering_and_state():

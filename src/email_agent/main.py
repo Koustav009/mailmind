@@ -14,6 +14,7 @@ from email_agent.services.imap_service import ImapService
 from email_agent.services.llm_router import LLMRouter, build_providers
 from email_agent.services.processor import EmailProcessor
 from email_agent.services.telegram_service import TelegramService
+from email_agent.utils.helpers import ensure_utf8_stdout
 
 log = structlog.get_logger(__name__)
 
@@ -52,6 +53,7 @@ class PollJob:
 
 
 async def run(settings: Settings) -> None:
+    ensure_utf8_stdout()
     configure_logging(settings.log_level)
     log.info("agent_starting", providers=settings.provider_order)
 

@@ -125,6 +125,29 @@ async def test_invalid_json_retries_then_fails_over():
     assert result.value.name == "x"
 
 
+async def test_parse_failure_triggers_repair_message():
+    captured = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(json.loads(request.content))
+        if len(captured) == 1:
+            return chat_response('{"category": "promotional"}')
+        return chat_response(GOOD_JSON)
+
+    router = LLMRouter([make_provider("p1", handler)], max_retries=1)
+    result = await router.complete(MESSAGES, Item)
+
+    assert result.value == Item(name="x", score=1)
+    assert len(captured) == 2
+    first, second = captured[0]["messages"], captured[1]["messages"]
+    assert len(first) == len(MESSAGES)
+    assert len(second) == len(MESSAGES) + 1
+    repair = second[-1]
+    assert repair["role"] == "user"
+    assert "rejected" in repair["content"]
+    assert "Item" in repair["content"]
+
+
 async def test_exhausted_raises_with_all_errors():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(503, json={"error": "down"})

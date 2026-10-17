@@ -9,6 +9,7 @@ import json
 from email_agent.config import Settings
 from email_agent.db.repositories import DecisionRepository
 from email_agent.db.session import make_engine, make_session_factory
+from email_agent.utils.helpers import ensure_utf8_stdout
 
 
 async def collect_rows(settings: Settings) -> list[dict]:
@@ -39,6 +40,7 @@ def render(rows: list[dict], fmt: str) -> str:
 
 
 async def main() -> None:
+    ensure_utf8_stdout()
     parser = argparse.ArgumentParser(description="Export user decisions to CSV or JSON")
     parser.add_argument("--format", choices=["csv", "json"], default="csv")
     parser.add_argument("--output", help="Output file path (prints to stdout if omitted)")

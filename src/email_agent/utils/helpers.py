@@ -1,9 +1,27 @@
-from datetime import datetime, timezone
+import sys
+from datetime import date, datetime, timezone
+
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def ensure_utf8_stdout() -> None:
+    """Use UTF-8 for stdout — Windows consoles default to cp1252 and crash on email text."""
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
 
 
 def utcnow() -> datetime:
     """Current UTC time as a naive datetime (stored in SQLite as UTC)."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def format_imap_date(value: date) -> str:
+    """Format a date as IMAP SEARCH SINCE expects (e.g. '05-Oct-2026')."""
+    return f"{value.day:02d}-{_MONTHS[value.month - 1]}-{value.year}"
 
 
 def truncate_text(text: str, max_chars: int) -> str:

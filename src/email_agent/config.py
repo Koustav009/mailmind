@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     imap_folder: str = "INBOX"
     imap_archive_folder: str = "Archive"
     imap_trash_folder: str = "Trash"
+    imap_lookback_days: int = 2
 
     # --- Telegram ---
     telegram_bot_token: str = Field(repr=False)

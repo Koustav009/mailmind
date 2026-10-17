@@ -1,4 +1,11 @@
-from email_agent.utils.helpers import chunk_text, truncate_text, utcnow
+from datetime import date
+
+from email_agent.utils.helpers import chunk_text, format_imap_date, truncate_text, utcnow
+
+
+def test_format_imap_date_is_english_abbreviated():
+    assert format_imap_date(date(2026, 10, 5)) == "05-Oct-2026"
+    assert format_imap_date(date(2026, 1, 31)) == "31-Jan-2026"
 
 
 def test_truncate_text_short_unchanged():

@@ -86,12 +86,19 @@ class ImapService:
                 pass
             self._client = None
 
-    async def fetch_unseen(self) -> list[tuple[int, list[str], bytes]]:
-        """Fetch all UNSEEN messages with BODY.PEEK (read status untouched)."""
+    async def fetch_unseen(self, since: str | None = None) -> list[tuple[int, list[str], bytes]]:
+        """Fetch UNSEEN messages with BODY.PEEK (read status untouched).
+
+        `since` limits the search to recent mail (IMAP SINCE date, e.g.
+        '05-Oct-2026') — important for mailboxes with long unread history.
+        """
 
         async def op() -> list[tuple[int, list[str], bytes]]:
             client = self._require()
-            resp = await client.uid_search("UNSEEN")
+            criteria = ["UNSEEN"]
+            if since:
+                criteria += ["SINCE", since]
+            resp = await client.uid_search(*criteria)
             self._check_sync(resp, "uid search")
             results: list[tuple[int, list[str], bytes]] = []
             for uid in parse_uid_search(resp.lines):

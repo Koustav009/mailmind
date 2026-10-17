@@ -8,7 +8,12 @@ from pydantic import BaseModel
 from email_agent.config import Settings
 from email_agent.db.repositories import UsageRepository
 from email_agent.services.providers.anthropic import AnthropicProvider
-from email_agent.services.providers.base import BaseProvider, CompletionResult, ProviderError
+from email_agent.services.providers.base import (
+    BaseProvider,
+    CompletionResult,
+    ProviderError,
+    ProviderResponseError,
+)
 from email_agent.services.providers.groq import GroqProvider
 from email_agent.services.providers.openai_compat import OpenAICompatProvider
 
@@ -60,6 +65,19 @@ def build_providers(settings: Settings) -> list[BaseProvider]:
     return [build_provider(name, settings) for name in settings.provider_order]
 
 
+def _repair_message(response_model: type, exc: ProviderError) -> dict:
+    return {
+        "role": "user",
+        "content": (
+            "Your previous response was rejected:\n"
+            f"{exc}\n\n"
+            f"Respond again with ONLY one valid JSON object matching the required "
+            f"{response_model.__name__} schema exactly - every field present, values "
+            "only from the allowed literals. No markdown, no commentary."
+        ),
+    }
+
+
 class LLMRouter:
     """Multi-provider completion with priority failover and central usage logging.
 
@@ -97,10 +115,12 @@ class LLMRouter:
     ) -> CompletionResult[T]:
         errors: list[str] = []
         for provider in self._order():
+            attempt_messages = messages
+            repaired = False
             for attempt in range(self._max_retries + 1):
                 try:
                     result = await provider.complete(
-                        messages,
+                        attempt_messages,
                         response_model,
                         task=task,
                         temperature=self._temperature,
@@ -119,6 +139,9 @@ class LLMRouter:
                     )
                     if not exc.retryable:
                         break
+                    if isinstance(exc, ProviderResponseError) and not repaired:
+                        attempt_messages = messages + [_repair_message(response_model, exc)]
+                        repaired = True
                     if attempt < self._max_retries:
                         await asyncio.sleep(min(2**attempt, 8) + random.uniform(0, 0.5))
         raise RouterExhaustedError(errors)

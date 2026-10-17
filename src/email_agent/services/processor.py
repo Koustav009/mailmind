@@ -1,4 +1,5 @@
 import secrets
+from datetime import date, timedelta
 
 import structlog
 
@@ -10,6 +11,7 @@ from email_agent.services.classifier import Classifier
 from email_agent.services.imap_service import ImapService
 from email_agent.services.telegram_service import TelegramService
 from email_agent.utils.email_parser import parse_email
+from email_agent.utils.helpers import format_imap_date
 
 log = structlog.get_logger(__name__)
 
@@ -39,8 +41,9 @@ class EmailProcessor:
         self._settings = settings
 
     async def run_cycle(self) -> int:
-        """Process all unseen messages. Returns the number processed."""
-        fetched = await self._imap.fetch_unseen()
+        """Process unseen messages from the lookback window. Returns count processed."""
+        since = format_imap_date(date.today() - timedelta(days=self._settings.imap_lookback_days))
+        fetched = await self._imap.fetch_unseen(since=since)
         processed = 0
         for uid, _flags, raw in fetched:
             try:

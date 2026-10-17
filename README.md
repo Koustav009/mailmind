@@ -77,6 +77,7 @@ All configuration is via environment variables (or `.env`). See
 | `LLM_STRATEGY` | `priority` (failover order) or `weighted` (randomized load spread) |
 | `TELEGRAM_CHAT_IDS` | Whitelisted chat ids (comma-separated). The first id receives notifications; buttons from any other chat are rejected |
 | `POLL_INTERVAL_MINUTES` | IMAP polling interval (default 5) |
+| `IMAP_LOOKBACK_DAYS` | Only fetch unread mail from the last N days (default 2) — protects against huge unread backlogs |
 | `SENDER_WHITELIST` / `SENDER_BLACKLIST` | Comma-separated emails or `@domain` suffixes that override classification |
 | `FAILURES_BEFORE_ALERT` | Consecutive failed poll cycles before a Telegram alert (default 3) |
 
