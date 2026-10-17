@@ -6,6 +6,29 @@ import aioimaplib
 LITERAL_END_RE = re.compile(rb"\{\d+\}$")
 UID_RE = re.compile(rb"UID (\d+)")
 FLAGS_RE = re.compile(rb"FLAGS \(([^)]*)\)")
+LABELS_RE = re.compile(rb"X-GM-LABELS \(([^)]*)\)")
+
+FETCH_QUERY = "(UID FLAGS X-GM-LABELS BODY.PEEK[])"
+FETCH_QUERY_NO_LABELS = "(UID FLAGS BODY.PEEK[])"
+
+CATEGORY_LABELS = {
+    "CATEGORY_PRIMARY": "Primary",
+    "CATEGORY_PROMOTIONS": "Promotions",
+    "CATEGORY_SOCIAL": "Social",
+    "CATEGORY_UPDATES": "Updates",
+    "CATEGORY_FORUMS": "Forums",
+}
+
+
+def mail_folder_from_labels(labels: list[str], flags: list[str] | None = None) -> str:
+    """Map Gmail IMAP labels/flags to the visible tab (Primary/Promotions/...)."""
+    for label in labels:
+        if label in CATEGORY_LABELS:
+            return CATEGORY_LABELS[label]
+    lowered = {label.lower() for label in labels}
+    if (flags and "\\Junk" in flags) or lowered & {"\\junk", "spam", "[gmail]/spam"}:
+        return "Spam"
+    return "Primary"
 
 
 class ImapError(Exception):
@@ -22,10 +45,11 @@ def parse_uid_search(lines: list[bytes]) -> list[int]:
     return ids
 
 
-def parse_fetch_response(lines: list) -> tuple[int, list[str], bytes]:
-    """Parse a single-message FETCH response into (uid, flags, raw bytes)."""
+def parse_fetch_response(lines: list) -> tuple[int, list[str], list[str], bytes]:
+    """Parse a single-message FETCH response into (uid, flags, labels, raw bytes)."""
     uid = 0
     flags: list[str] = []
+    labels: list[str] = []
     raw = b""
     for i, line in enumerate(lines):
         if not isinstance(line, bytes):
@@ -38,10 +62,13 @@ def parse_fetch_response(lines: list) -> tuple[int, list[str], bytes]:
         flags_match = FLAGS_RE.search(line)
         if flags_match:
             flags = flags_match.group(1).decode(errors="replace").split()
+        labels_match = LABELS_RE.search(line)
+        if labels_match:
+            labels = labels_match.group(1).decode(errors="replace").split()
         if i + 1 < len(lines) and isinstance(lines[i + 1], (bytes, bytearray)):
             raw = bytes(lines[i + 1])
         break
-    return uid, flags, raw
+    return uid, flags, labels, raw
 
 
 class ImapService:
@@ -69,6 +96,7 @@ class ImapService:
         self._archive_folder = archive_folder
         self._trash_folder = trash_folder
         self._client: aioimaplib.IMAP4_SSL | None = None
+        self._gm_labels = True
 
     async def connect(self) -> None:
         await self.disconnect()
@@ -86,31 +114,43 @@ class ImapService:
                 pass
             self._client = None
 
-    async def fetch_unseen(self, since: str | None = None) -> list[tuple[int, list[str], bytes]]:
+    async def fetch_unseen(self, since: str | None = None) -> list[tuple[int, list[str], list[str], bytes]]:
         """Fetch UNSEEN messages with BODY.PEEK (read status untouched).
 
-        `since` limits the search to recent mail (IMAP SINCE date, e.g.
-        '05-Oct-2026') — important for mailboxes with long unread history.
+        Returns (uid, flags, labels, raw) tuples. `since` limits the search to
+        recent mail (IMAP SINCE date, e.g. '05-Oct-2026') — important for
+        mailboxes with long unread history. Labels are Gmail X-GM-LABELS
+        (empty on non-Gmail servers).
         """
 
-        async def op() -> list[tuple[int, list[str], bytes]]:
+        async def op() -> list[tuple[int, list[str], list[str], bytes]]:
             client = self._require()
             criteria = ["UNSEEN"]
             if since:
                 criteria += ["SINCE", since]
             resp = await client.uid_search(*criteria)
             self._check_sync(resp, "uid search")
-            results: list[tuple[int, list[str], bytes]] = []
+            results: list[tuple[int, list[str], list[str], bytes]] = []
             for uid in parse_uid_search(resp.lines):
-                fetch = await client.uid("fetch", str(uid), "(UID FLAGS BODY.PEEK[])")
-                if fetch.result != "OK":
-                    continue
-                parsed = parse_fetch_response(fetch.lines)
-                if parsed[2]:
-                    results.append(parsed)
+                fetch = await self._fetch_one(client, uid)
+                results.append(parse_fetch_response(fetch.lines))
             return results
 
         return await self._with_reconnect(op)
+
+    async def _fetch_one(self, client: aioimaplib.IMAP4_SSL, uid: int):
+        query = FETCH_QUERY if self._gm_labels else FETCH_QUERY_NO_LABELS
+        try:
+            resp = await client.uid("fetch", str(uid), query)
+            self._check_sync(resp, "uid fetch")
+            return resp
+        except ImapError:
+            if not self._gm_labels:
+                raise
+            self._gm_labels = False  # server lacks X-GM-LABELS (non-Gmail)
+            resp = await client.uid("fetch", str(uid), FETCH_QUERY_NO_LABELS)
+            self._check_sync(resp, "uid fetch")
+            return resp
 
     async def fetch_message(self, uid: int) -> bytes:
         """Re-fetch the full raw message for a UID (used by Show Full)."""
@@ -119,7 +159,7 @@ class ImapService:
             client = self._require()
             resp = await client.uid("fetch", str(uid), "(UID BODY.PEEK[])")
             self._check_sync(resp, "uid fetch")
-            return parse_fetch_response(resp.lines)[2]
+            return parse_fetch_response(resp.lines)[3]
 
         return await self._with_reconnect(op)
 

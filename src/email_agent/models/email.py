@@ -15,6 +15,7 @@ class ParsedEmail(BaseModel):
     body_text: str = ""
     is_html: bool = False
     has_attachments: bool = False
+    mail_folder: str = ""  # Gmail tab: Primary / Promotions / Social / Updates / Forums / Spam
 
     @property
     def sender(self) -> str:

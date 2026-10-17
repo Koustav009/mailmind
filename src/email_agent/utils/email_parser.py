@@ -15,21 +15,22 @@ _WHITESPACE_RE = re.compile(r"[ \t]+")
 _BLANK_LINES_RE = re.compile(r"\n{3,}")
 
 
-def parse_email(raw: bytes, uid: int = 0) -> ParsedEmail:
+def parse_email(raw: bytes, uid: int = 0, mail_folder: str = "") -> ParsedEmail:
     """Parse raw RFC822 bytes into a cleaned ParsedEmail."""
     msg = message_from_bytes(raw, policy=policy.default)
     from_name, from_addr = parseaddr(_header(msg, "from"))
     body_text, is_html = _extract_body(msg)
     return ParsedEmail(
-        message_id=_message_id(msg, from_addr=from_addr),
+        message_id=_message_id(msg, from_addr),
         uid=uid,
         subject=_header(msg, "subject"),
-        from_addr=from_addr.lower(),
+        from_addr=from_addr,
         from_name=from_name,
         date=_parse_date(msg),
         body_text=body_text,
         is_html=is_html,
         has_attachments=_has_attachments(msg),
+        mail_folder=mail_folder,
     )
 
 

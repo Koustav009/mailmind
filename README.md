@@ -121,6 +121,7 @@ Useful scripts:
 | `scripts/init_db.py` | Create the database schema |
 | `scripts/check_phase1.py` | Live IMAP smoke test (fetch + parse + store) |
 | `scripts/check_phase2.py` | Live LLM router smoke test (classification JSON) |
+| `scripts/check_telegram.py` | Live Telegram smoke test (bot identity + test message per whitelisted chat) |
 | `scripts/export_decisions.py` | Export your confirmations to CSV/JSON |
 
 ## Security

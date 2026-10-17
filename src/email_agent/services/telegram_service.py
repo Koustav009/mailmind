@@ -29,10 +29,13 @@ BUTTON_LABELS = {
 
 def format_notification(email: ParsedEmail, classification: EmailClassification) -> str:
     emoji = IMPORTANCE_EMOJI.get(classification.importance, "⚪")
+    date_str = email.date.strftime("%Y-%m-%d %H:%M") if email.date else "unknown"
     return (
         f"{emoji} {classification.importance.capitalize()} — {classification.category}\n"
         f"Subject: {email.subject}\n"
-        f"From: {email.from_name} <{email.from_addr}>\n\n"
+        f"From: {email.from_name} <{email.from_addr}>\n"
+        f"Date: {date_str}\n"
+        f"Folder: {email.mail_folder or 'unknown'}\n\n"
         f"{classification.summary}\n\n"
         f"Reason: {classification.reason}\n"
         f"Confidence: {classification.confidence:.2f} | "
@@ -118,12 +121,14 @@ class TelegramService:
     async def send_failure_notice(self, email: ParsedEmail) -> None:
         if self._primary_chat_id is None or self._app is None:
             return
+        date_str = email.date.strftime("%Y-%m-%d %H:%M") if email.date else "unknown"
         await self._app.bot.send_message(
             chat_id=self._primary_chat_id,
             text=(
                 "⚠️ Classification unavailable — please review manually.\n"
                 f"Subject: {email.subject}\n"
-                f"From: <{email.from_addr}>"
+                f"From: <{email.from_addr}>\n"
+                f"Date: {date_str}"
             ),
         )
 

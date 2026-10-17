@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from email_agent.models.classification import EmailClassification
 from email_agent.models.email import ParsedEmail
 from email_agent.services.telegram_service import (
@@ -81,13 +83,27 @@ def make_classification() -> EmailClassification:
 
 
 def test_format_notification_contains_key_fields():
-    email = ParsedEmail(message_id="m", subject="Q3 Report", from_addr="boss@corp.example", from_name="Boss")
+    email = ParsedEmail(
+        message_id="m",
+        subject="Q3 Report",
+        from_addr="boss@corp.example",
+        from_name="Boss",
+        date=datetime(2026, 10, 17, 10, 0),
+        mail_folder="Promotions",
+    )
     text = format_notification(email, make_classification())
     assert "Q3 Report" in text
     assert "Boss <boss@corp.example>" in text
+    assert "Date: 2026-10-17 10:00" in text
+    assert "Folder: Promotions" in text
     assert "Boss needs the report." in text
     assert "Recommended: notify" in text
     assert "0.95" in text
+
+
+def test_format_notification_unknown_date():
+    email = ParsedEmail(message_id="m", subject="S", from_addr="a@b.c")
+    assert "Date: unknown" in format_notification(email, make_classification())
 
 
 def test_keyboard_and_callback_data_roundtrip():

@@ -8,7 +8,7 @@ from email_agent.db.repositories import EmailRepository
 from email_agent.models.classification import EmailClassification
 from email_agent.models.email import ParsedEmail
 from email_agent.services.classifier import Classifier
-from email_agent.services.imap_service import ImapService
+from email_agent.services.imap_service import ImapService, mail_folder_from_labels
 from email_agent.services.telegram_service import TelegramService
 from email_agent.utils.email_parser import parse_email
 from email_agent.utils.helpers import format_imap_date
@@ -45,16 +45,16 @@ class EmailProcessor:
         since = format_imap_date(date.today() - timedelta(days=self._settings.imap_lookback_days))
         fetched = await self._imap.fetch_unseen(since=since)
         processed = 0
-        for uid, _flags, raw in fetched:
+        for uid, _flags, labels, raw in fetched:
             try:
-                await self.process_one(uid, raw)
+                await self.process_one(uid, raw, labels)
                 processed += 1
             except Exception as exc:
                 log.error("email_dead_letter", uid=uid, error=str(exc), exc_info=True)
         return processed
 
-    async def process_one(self, uid: int, raw: bytes) -> None:
-        email = parse_email(raw, uid=uid)
+    async def process_one(self, uid: int, raw: bytes, labels: list[str] | None = None) -> None:
+        email = parse_email(raw, uid=uid, mail_folder=mail_folder_from_labels(labels or []))
         record = await self._repo.get(email.message_id)
         if record is not None:
             await self._resend_pending_notification(record)

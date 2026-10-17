@@ -155,7 +155,7 @@ async def test_cycle_limits_fetch_to_lookback_window():
 async def test_happy_path_ordering_and_state():
     events: list[str] = []
     repo = FakeRepo(events)
-    processor = make_processor(events, [(1, [], raw_email("mid-1"))], repo=repo)
+    processor = make_processor(events, [(1, [], [], raw_email("mid-1"))], repo=repo)
 
     processed = await processor.run_cycle()
 
@@ -173,7 +173,7 @@ async def test_duplicate_message_id_is_skipped():
     events: list[str] = []
     repo = FakeRepo(events)
     classifier = FakeClassifier(events)
-    unseen = [(1, [], raw_email("mid-1")), (2, [], raw_email("mid-1"))]
+    unseen = [(1, [], [], raw_email("mid-1")), (2, [], [], raw_email("mid-1"))]
     processor = make_processor(events, unseen, classifier=classifier, repo=repo)
 
     processed = await processor.run_cycle()
@@ -194,7 +194,7 @@ async def test_pending_notification_is_retried_then_marked_seen():
         notify_token="tok-1",
     )
     telegram = FakeTelegram(events)
-    processor = make_processor(events, [(1, [], raw_email("mid-1"))], telegram=telegram, repo=repo)
+    processor = make_processor(events, [(1, [], [], raw_email("mid-1"))], telegram=telegram, repo=repo)
 
     await processor.run_cycle()
 
@@ -210,7 +210,7 @@ async def test_classification_failure_records_dead_letter_and_notifies():
     telegram = FakeTelegram(events)
     processor = make_processor(
         events,
-        [(1, [], raw_email("mid-1"))],
+        [(1, [], [], raw_email("mid-1"))],
         classifier=FakeClassifier(events, fail=True),
         telegram=telegram,
         repo=repo,
@@ -232,7 +232,7 @@ async def test_one_bad_email_does_not_block_the_queue():
     telegram = FakeTelegram(events)
     processor = make_processor(
         events,
-        [(1, [], raw_email("bad")), (2, [], raw_email("good"))],
+        [(1, [], [], raw_email("bad")), (2, [], [], raw_email("good"))],
         telegram=telegram,
         repo=repo,
     )
@@ -248,7 +248,7 @@ async def test_notify_failure_keeps_record_pending_for_retry():
     events: list[str] = []
     repo = FakeRepo(events)
     telegram = FakeTelegram(events, fail_notify=True)
-    processor = make_processor(events, [(1, [], raw_email("mid-1"))], telegram=telegram, repo=repo)
+    processor = make_processor(events, [(1, [], [], raw_email("mid-1"))], telegram=telegram, repo=repo)
 
     with pytest.raises(RuntimeError):
         await processor.process_one(1, raw_email("mid-1"))

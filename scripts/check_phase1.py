@@ -11,7 +11,7 @@ from email_agent.config import Settings
 from email_agent.db.repositories import EmailRepository
 from email_agent.db.session import init_db, make_engine, make_session_factory
 from email_agent.log import configure_logging
-from email_agent.services.imap_service import ImapService
+from email_agent.services.imap_service import ImapService, mail_folder_from_labels
 from email_agent.utils.email_parser import parse_email
 from email_agent.utils.helpers import ensure_utf8_stdout, format_imap_date
 
@@ -39,8 +39,8 @@ async def main() -> None:
     fetched = await imap.fetch_unseen(since=since)
     print(f"Fetched {len(fetched)} unseen message(s) since {since}\n", flush=True)
 
-    for uid, _flags, raw in fetched:
-        email = parse_email(raw, uid=uid)
+    for uid, _flags, labels, raw in fetched:
+        email = parse_email(raw, uid=uid, mail_folder=mail_folder_from_labels(labels))
         await repo.add(
             message_id=email.message_id,
             uid=email.uid,
@@ -53,6 +53,7 @@ async def main() -> None:
         print(f"From:    {email.from_name} <{email.from_addr}>", flush=True)
         print(f"Subject: {email.subject}", flush=True)
         print(f"Date:    {email.date}", flush=True)
+        print(f"Folder:  {email.mail_folder}", flush=True)
         print(email.body_text[:500], flush=True)
         print(flush=True)
 
