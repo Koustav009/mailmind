@@ -1,0 +1,15 @@
+services:
+  email-agent:
+    build: .
+    env_file: .env
+    restart: unless-stopped
+    volumes:
+      - agent-data:/app/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  agent-data:
